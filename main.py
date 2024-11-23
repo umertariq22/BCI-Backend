@@ -15,7 +15,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-client = MongoClient("mongodb://192.168.1.8:27017/")
+client = MongoClient("mongodb://localhost:27017")
 db = client["bci"]
 collection = db["users"]
 
@@ -39,3 +39,12 @@ async def signup(request:Request):
         return {"status":"success","message":"User created successfully"}
     except errors.PyMongoError as e:
         return {"status":"error","message":str(e)}
+    
+@app.post("/eeg")
+async def eegdata(request:Request):
+    data = await request.json()
+    
+    print(data)
+    
+    return "data received "
+
