@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Response, status,Request
+from fastapi import FastAPI, Response,Request
 from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from passlib.context import CryptContext
@@ -7,7 +7,9 @@ from signup import User,validateSignupForm,AuthResponseModel
 import csv
 from pymongo import MongoClient,errors
 import os
-
+from fastapi_mail import FastMail, MessageSchema,ConnectionConfig
+import math,random
+from dotenv import load_dotenv
 app = FastAPI()
 
 origins = ["http://localhost:3000"]
@@ -24,8 +26,13 @@ client = MongoClient("mongodb://localhost:27017")
 db = client["bci"]
 collection = db["users"]
 
+load_dotenv()
+
 SECRET_KEY = os.environ.get("JWT_SECRET")
 ALGORITHM = "HS256"
+
+EMAIL: str = os.environ.get("MAIL_EMAIL")
+PASSWORD: str = os.environ.get("MAIL_PASSWORD")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -44,7 +51,24 @@ def verify_token(token:str):
     except jwt.JWTError:
         return {"status":"error","message":"Invalid token"}
         
-
+def generate_otp(length=6):
+    digits = "0123456789"
+    OTP = ""
+    for i in range(length):
+        OTP += digits[math.floor(random.random() * 10)]
+    return OTP
+ 
+connection_conf = ConnectionConfig(
+    MAIL_USERNAME=EMAIL,
+    MAIL_PASSWORD=PASSWORD,
+    MAIL_FROM=EMAIL,
+    MAIL_PORT=587,
+    MAIL_SERVER="smtp.gmail.com",
+    MAIL_STARTTLS=True,
+    MAIL_SSL_TLS=False,
+    USE_CREDENTIALS=True,
+    VALIDATE_CERTS=True
+)
 
 @app.get("/")
 def read_root():
@@ -115,6 +139,58 @@ async def validate_token(request:Request):
 async def logout(response:Response):
     response.delete_cookie("access_token")
     return {"status":"success","message":"User logged out successfully"}
+
+@app.post("/send-email")
+async def send_email(request:Request):
+    data = await request.json()
+    user = collection.find_one({"email":data["email"]})
+    if not user:
+        return {"status":"error","message":"User not found"}
+    
+    otp = generate_otp()
+    collection.update_one({"email":data["email"]},{"$set":{"otp":otp}})
+    
+    template = f"""
+    <h1>OTP for password reset</h1>
+    <p>Your OTP is {otp}</p>
+    """
+    message = MessageSchema(
+        subject="OTP for password reset",
+        recipients=[data["email"]],
+        body=template,
+        subtype="html"
+    )
+    
+    fm = FastMail(connection_conf)
+    try:
+        await fm.send_message(message)
+    except Exception as e:
+        print(str(e))
+        return {"status":"error","message":"Failed to send OTP"}
+    
+    return {"status":"success","message":"OTP sent successfully"}
+
+@app.post("/validate-otp")
+async def validate_otp(request:Request):
+    data = await request.json()
+    user = collection.find_one({"email":data["email"]})
+    if not user:
+        return {"status":"error","message":"User not found"}
+    if not user.get("otp"):
+        return {"status":"error","message":"OTP not found"}
+    if user["otp"] != data["otp"]:
+        return {"status":"error","message":"Invalid OTP"}
+    return {"status":"success","message":"OTP is valid"}
+    
+@app.post("/reset-password")
+async def reset_password(request:Request):
+    data = await request.json()
+    user = collection.find_one({"email":data["email"]})
+    if not user:
+        return {"status":"error","message":"User not found"}
+    collection.update_one({"email":data["email"]},{"$set":{"password":pwd_context.hash(data["password"]),"otp":""}})
+    return {"status":"success","message":"Password reset successfully"}
+    
 
 @app.post("/eeg")
 async def eegdata(request:Request):

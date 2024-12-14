@@ -6,3 +6,4 @@ passlib
 python-dotenv
 pydantic[email]
 bcrypt
+fastapi-mail
