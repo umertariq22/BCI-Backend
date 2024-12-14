@@ -1,3 +1,8 @@
 pymongo
 fastapi
 uvicorn
+pydantic
+passlib
+python-dotenv
+pydantic[email]
+bcrypt

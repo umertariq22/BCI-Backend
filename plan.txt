@@ -1,0 +1,12 @@
+data_format = {
+    "timestamp": current_time,
+    "values" : [0,0,0,0]
+}
+
+Data would be saved in Mongo in following format
+
+{
+    "user_id": user_id,
+    "timestamp": current_time,
+    "values": [0,0,0,0]
+}

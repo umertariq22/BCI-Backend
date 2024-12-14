@@ -1,15 +1,19 @@
-from pydantic import BaseModel
+from pydantic import BaseModel,EmailStr
 import re
 
 
 class User(BaseModel):
-    email: str
+    email: EmailStr
     password: str
     age:int
     gender:str
+
+class AuthResponseModel(BaseModel):
+    status: str
+    message: str
+    access_token: str
     
 def validateSignupForm(user: User):
-    
     for key in user:
         if user[key] == "":
             return f"All fields must be filled out."
