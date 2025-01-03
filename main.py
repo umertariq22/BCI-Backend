@@ -1,15 +1,39 @@
-from fastapi import FastAPI, Response,Request
+from fastapi import FastAPI, Response,Request,BackgroundTasks
 from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from passlib.context import CryptContext
 import jwt
 from signup import User,validateSignupForm,AuthResponseModel
-import csv
 from pymongo import MongoClient,errors
 import os
 from fastapi_mail import FastMail, MessageSchema,ConnectionConfig
 import math,random
 from dotenv import load_dotenv
+from eeg_collect import SensorReader
+from data_preprocessor import PreprocessEEG
+from feature_selection import FeatureExtractor
+from model_trainer import Model
+
+
+TOTAL_TIME = 20
+FREQ = 512
+
+
+state_to_label = {
+    "Relaxing":0,
+    "Focused":1
+}
+
+
+current_data_state = {
+    "isRunning":False,
+    "state":None,
+    "time":None,
+    "data":[],
+    "label":[]
+}
+
+
 app = FastAPI()
 
 origins = ["http://localhost:3000"]
@@ -25,6 +49,12 @@ app.add_middleware(
 client = MongoClient("mongodb://localhost:27017")
 db = client["bci"]
 collection = db["users"]
+
+sensor_reader = SensorReader(port="COM7")
+preprocessor = PreprocessEEG()
+feature_extractor = FeatureExtractor()
+model = Model()
+
 
 load_dotenv()
 
@@ -191,22 +221,49 @@ async def reset_password(request:Request):
     return {"status":"success","message":"Password reset successfully"}
     
 
-@app.post("/eeg")
-async def eegdata(request:Request):
-    data = await request.json()
-    raw_eeg_data = {
-        "user_id":1,
-        "timestamp":data["timestamp"],
-        "eeg_data":data["values"]
-    }
+async def start_eeg_pipeline():
+    global current_data_state
+    sensor_reader.connect()
+    while current_data_state["isRunning"]:
+        data = sensor_reader.read_one_second_data()
+        preprocessed_data = preprocessor.preprocess(data)
+        feature = feature_extractor.calculate_features(preprocessed_data)
+        current_data_state["data"].append(feature)
+        current_data_state["label"].append(state_to_label[current_data_state["state"]])
     
-    # open csv file and write the data as follows user_id,timestamp,channel1,channel2,channel3,channel4 and do not add empty lines
-    with open("eegdata.csv","a",newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow([raw_eeg_data["user_id"],raw_eeg_data["timestamp"],*raw_eeg_data["eeg_data"]])
-                
-    
-    collection = db["eegdata"]
-    collection.insert_one(raw_eeg_data)
-    return "data received"
+    sensor_reader.disconnect()
+    return {"status":"success","message":"Data collection Stopped"}
+        
+        
 
+@app.post("/start-collection")
+async def start_eeg_collection(request:Request,background_tasks:BackgroundTasks):
+    data = await request.json()
+    token_status = verify_token(request.cookies.get("access_token"))
+    if token_status["status"] == "error":
+        return {"status":"error","message":"Invalid token"}
+    if not data.get("time") or not data.get("state"):
+        return {"status":"error","message":"Invalid request"}
+    current_state = data.get("state")
+    time = data.get("time")  
+    current_data_state["state"] = current_state
+    current_data_state["time"] = time
+    current_data_state["isRunning"] = True
+    
+    background_tasks.add_task(start_eeg_pipeline)
+    return {"status":"success","message":"Data collection started"}
+    
+
+@app.post("/stop-collection")
+async def stop_eeg_collection(request:Request):
+    if not current_data_state["isRunning"]:
+        return {"status":"error","message":"Data collection not started"}
+    if len(current_data_state["data"]) >= TOTAL_TIME * 60 * FREQ * 2:
+        model.train_with_split(current_data_state["data"],current_data_state["label"])
+        return {"status":"success","message":"Data collection stopped and model trained"}        
+    current_data_state["isRunning"] = False
+    return {"status":"success","message":"Data collection stopped"}
+
+
+    
+    
