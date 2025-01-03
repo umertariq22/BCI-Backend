@@ -46,7 +46,6 @@ def create_access_token(data: dict, expires_delta:timedelta = timedelta(days=1))
 def verify_token(token:str):
     try:
         payload = jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM])
-        print(payload)
         return {"status":"success","message":"Token is valid","email":payload["email"]}
     except jwt.JWTError:
         return {"status":"error","message":"Invalid token"}

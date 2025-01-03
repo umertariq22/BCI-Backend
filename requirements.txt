@@ -7,3 +7,8 @@ python-dotenv
 pydantic[email]
 bcrypt
 fastapi-mail
+pandas
+numpy
+scipy
+scikit-learn
+matplotlib
