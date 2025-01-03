@@ -5,7 +5,7 @@ from scipy import signal
 
 class FeatureExtractor:
     def __init__(self,sampling_rate = 512):
-        self.columns = ['energy_alpha', 'energy_beta', 'energy_theta', 'energy_delta', 'alpha_beta_ratio', 'max_freq', 'spectral_centroid', 'spectral_slope']
+        self.columns = set()
         self.sampling_rate = sampling_rate
     
     def calculate_psd_features(self,data):
@@ -18,13 +18,16 @@ class FeatureExtractor:
         
         alpha_beta_ratio = energy_alpha / energy_beta if energy_beta != 0 else 0
         
-        return {
+        features = {
             'energy_alpha': energy_alpha,
             'energy_beta': energy_beta,
             'energy_theta': energy_theta,
             'energy_delta': energy_delta,
             'alpha_beta_ratio': alpha_beta_ratio
         }
+        
+        self.columns.update(features.keys())
+        return features
     
     def calculate_spectral_features(self,data):
         freqs, psd = signal.welch(data, fs = self.sampling_rate, nperseg = len(data))
@@ -34,16 +37,43 @@ class FeatureExtractor:
         log_psd = np.log(psd[1:])
         spectral_slope = np.polyfit(log_freqs, log_psd, 1)[0]
         
-        return {
+        features ={
             'max_freq': max_freq,
             'spectral_centroid': spectral_centroid,
             'spectral_slope': spectral_slope
         }
+        
+        self.columns.update(features.keys())
+        return features
+        
+
+
+    def calculate_temporal_features(self,data):
+        mean_value = np.mean(data)
+        variance = np.var(data)
+        
+        rms = np.sqrt(np.mean(np.square(data)))
+        zero_crossings = np.sum(np.diff(np.sign(data)) != 0)
+        mobility = np.std(np.diff(data)) / np.std(data)
+        complexity = (np.std(np.diff(np.diff(data))) / np.std(np.diff(data))) / mobility
+        features = {
+            "mean": mean_value,
+            "variance": variance,
+            "rms": rms,
+            "zero_crossings": zero_crossings,
+            "hjorth_mobility": mobility,
+            "hjorth_complexity": complexity,
+        }
+        
+        self.columns.update(features.keys())
+        return features
+
     
     def calculate_features(self,data):
         psd_features = self.calculate_psd_features(data)
         spectral_features = self.calculate_spectral_features(data)
+        temporal_features = self.calculate_temporal_features(data)
         
-        features =  {**psd_features, **spectral_features}
+        features =  {**psd_features, **spectral_features, **temporal_features}
         return features
     
