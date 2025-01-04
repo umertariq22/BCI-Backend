@@ -7,6 +7,9 @@ class User(BaseModel):
     password: str
     age:int
     gender:str
+    relaxed_data_collected:bool = False
+    focused_data_collected:bool = False
+    model_trained:bool = False
 
 class AuthResponseModel(BaseModel):
     status: str
