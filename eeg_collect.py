@@ -1,5 +1,7 @@
 import serial
 import time
+import numpy as np
+import pandas as pd
 
 class SensorReader:
     def __init__(self, port, baud_rate=115200, timeout=1):
@@ -58,8 +60,8 @@ class SensorReader:
         while True:
             data = self.read_data()
             if data:
-                sensor_values = list(map(int, data.split(',')))
-                yield sensor_values 
+                data = int(data)
+                yield data 
             time.sleep(1 / self.FREQ)
     
     def read_one_second_data(self):
@@ -72,16 +74,25 @@ class SensorReader:
 
 if __name__ == "__main__":
     sensor = SensorReader(port='COM7')  # Replace with your serial port
-
+    eeg_data = []
     if sensor.connect():
         try:
             started_reading = sensor.start_reading()
             
             for data in sensor.read_sensor_data():
-                print(data)
-
+                eeg_data.append(data)
         except KeyboardInterrupt:
             print("Reading interrupted.")
         finally:
             sensor.stop_reading()
             sensor.disconnect()
+    
+    eeg_data = np.array(eeg_data)
+    eeg_data = eeg_data.flatten()  
+    
+    df = pd.DataFrame(eeg_data,columns=['eeg_data'])
+    df.to_csv("eeg_data.csv", index=False)
+    print("EEG data saved to eeg_data.csv")
+    
+    
+    
