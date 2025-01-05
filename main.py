@@ -61,7 +61,7 @@ app.add_middleware(
 client = MongoClient("mongodb://localhost:27017")
 db = client["bci"]
 collection = db["users"]
-eeg_collection = db["eegdata"]
+eeg_collection = db["eegdata"] 
 
 sensor_reader = SensorReader(port='COM3')
 preprocessor = PreprocessEEG()
@@ -272,6 +272,8 @@ def start_eeg_pipeline(email: str):
             "label": state_to_label[current_data_state["state"]],
         }
         eeg_collection.insert_one(data_to_store)
+        print(data)
+        print(feature)
                 
     sensor_reader.stop_reading()
     sensor_reader.disconnect()

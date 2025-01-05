@@ -57,13 +57,12 @@ class SensorReader:
         return None
 
     def read_sensor_data(self):
-        while True:
-            data = self.read_data()
-            if data:
-                data = int(data)
-                return data
-            else:
-                return None
+        
+        data = self.read_data()
+        if data:
+            return data
+        else:
+            return None
     
     def read_one_second_data(self):
         data = []

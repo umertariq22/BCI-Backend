@@ -3,6 +3,7 @@ fastapi
 uvicorn
 pydantic
 passlib
+pyjwt
 python-dotenv
 pydantic[email]
 bcrypt
@@ -13,3 +14,4 @@ scipy
 scikit-learn
 matplotlib
 pyserial
+bcrypt
