@@ -14,8 +14,10 @@ from data_preprocessor import PreprocessEEG
 from feature_selection import FeatureExtractor
 from eeg_collect import SensorReader
 from model_trainer import Model
+from model_predict import ModelPredict
 import numpy as np
 import threading
+
 
 def convert_numpy_types(data):
     if isinstance(data, np.generic):
@@ -66,7 +68,6 @@ eeg_collection = db["eegdata"]
 sensor_reader = SensorReader(port='COM3')
 preprocessor = PreprocessEEG()
 feature_extractor = FeatureExtractor()
-model = Model()
 
 
 load_dotenv()
@@ -234,6 +235,7 @@ async def reset_password(request:Request):
 
 
 def model_training_pipeline(email):
+    model = Model()
     print("Model training started")
     user_data = collection.find_one({"email":email})
     if not user_data:
@@ -263,33 +265,22 @@ def start_eeg_pipeline(email: str):
     sensor_reader.start_reading()
     
     while current_data_state["isRunning"]:
-        # Get data from the generator
         generator_data = sensor_reader.read_one_second_data()
-        
-        # Convert generator to list for compatibility
-        data = list(next(generator_data, []))  # Use next to get one batch of data
+        data = list(next(generator_data, []))
         print(data)
         if not data:
             continue
-        
-        # Preprocess the data
         preprocessed_data = preprocessor.preprocess(data)
-        
-        # Extract features
         feature = feature_extractor.calculate_features(preprocessed_data)
-        
-        # Ensure compatibility of feature types
         feature = {key: convert_numpy_types(value) for key, value in feature.items()}
         data = [convert_numpy_types(d) for d in data]
         
-        # Structure the data to store in the database
         data_to_store = {
             "email": email,
             "features": feature,
             "label": state_to_label[current_data_state["state"]],
         }
         
-        # Save to database
         eeg_collection.insert_one(data_to_store)
         print(data)
         print(feature)
@@ -392,3 +383,54 @@ async def train_model(request:Request):
     thread.start()
     return {"status":"success","message":"Model trained successfully"}
 
+@app.post("/connect-egg")
+async def connect_eeg(request:Request):
+    token_status = verify_token(request.cookies.get("access_token"))
+    if token_status["status"] == "error":
+        return {"status":"error","message":"Invalid token"}
+    user = collection.find_one({"email":token_status["email"]})
+    if not user:
+        return {"status":"error","message":"User not found"}
+    if not user.get("model_trained"):
+        return {"status":"error","message":"Model not trained"}
+    sensor_reader.connect()
+    sensor_reader.start_reading()
+    return {"status":"success","message":"Connected to EEG"}
+
+@app.post("/disconnect-egg")
+async def disconnect_eeg(request:Request):
+    token_status = verify_token(request.cookies.get("access_token"))
+    if token_status["status"] == "error":
+        return {"status":"error","message":"Invalid token"}
+    user = collection.find_one({"email":token_status["email"]})
+    if not user:
+        return {"status":"error","message":"User not found"}
+    sensor_reader.disconnect()
+    sensor_reader.stop_reading()
+    return {"status":"success","message":"Disconnected from EEG"}
+
+@app.post("predict")
+async def predict(request:Request):
+    data = await request.json()
+    token_status = verify_token(request.cookies.get("access_token"))
+    if token_status["status"] == "error":
+        return {"status":"error","message":"Invalid token","prediction":None}
+    user = collection.find_one({"email":token_status["email"]})
+    if not user:
+        return {"status":"error","message":"User not found","prediction":None}
+    if not user.get("model_trained"):
+        return {"status":"error","message":"Model not trained","prediction":None}
+    model = ModelPredict(email = token_status["email"])
+    model.load_model()
+    
+    generator_data = sensor_reader.read_one_second_data()
+    data = list(next(generator_data, []))
+    sensor_reader.stop_reading()
+    preprocessed_data = preprocessor.preprocess(data)
+    feature = feature_extractor.calculate_features(preprocessed_data)
+    prediction = model.predict([feature.values()])
+    if prediction == 0:
+        prediction = "Relaxing"
+    else:
+        prediction = "Focused"
+    return {"status":"success","message":"Prediction successful","prediction":prediction}

@@ -21,7 +21,17 @@ class Model:
         self.model.fit(X_train, y_train)
         return self.evaluate(X_test, y_test)
     
+    def train(self,X,y):
+        data = pd.DataFrame(X).values
+        label = pd.DataFrame(y).values
+        data = self.scale_data(data)
+        self.model.fit(data, label)
+        return True
+    
     def predict(self, X):
+        X = pd.DataFrame(X).values
+        X = self.scale_data(X)
+        
         return self.model.predict(X)
     
     def evaluate(self, X, y):
@@ -36,7 +46,7 @@ class Model:
         return self.scaler.fit_transform(X)
     
     def save_model(self,email):
-        joblib.dump(self.model, f'{email}.joblib')
-        joblib.dump(self.scaler, f'{email}_scaler.joblib')
+        joblib.dump(self.model, f'models/{email}.joblib')
+        joblib.dump(self.scaler, f'models/{email}_scaler.joblib')
         return True
         
