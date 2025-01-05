@@ -152,9 +152,9 @@ async def login(request:Request,response:Response):
     data = await request.json()
     user = collection.find_one({"email":data["email"]})
     if not user:
-        return {"status":"error","message":"User not found"}
+        return {"status":"error","message":"User not found","access_token":""}
     if not pwd_context.verify(data["password"],user["password"]):
-        return {"status":"error","message":"Invalid credentials"}
+        return {"status":"error","message":"Invalid credentials","access_token":""}
     access_token = create_access_token(data={"email":user["email"]})
     response.set_cookie(
         key="access_token",
@@ -233,7 +233,8 @@ async def reset_password(request:Request):
     return {"status":"success","message":"Password reset successfully"}
 
 
-async def model_training_pipeline(email):
+def model_training_pipeline(email):
+    print("Model training started")
     user_data = collection.find_one({"email":email})
     if not user_data:
         return {"status":"error","message":"User not found"}
@@ -250,6 +251,10 @@ async def model_training_pipeline(email):
         X.append(record["features"])
         y.append(record["label"])
     model.train_with_split(X,y)
+    print("Model trained")
+    model.save_model(email=email)
+    print("Model saved")
+    collection.update_one({"email":email},{"$set":{"model_trained":True}})
     return {"status":"success","message":"Model trained successfully"}
     
 def start_eeg_pipeline(email: str):
@@ -295,14 +300,14 @@ def start_eeg_pipeline(email: str):
     return {"status": "success", "message": "Data collection Stopped"}
 
 def start_eeg_pipeline_with_thread(email: str):
-    stop_event.clear()  # Clear the stop event to allow the thread to start
+    stop_event.clear()
     thread = threading.Thread(target=start_eeg_pipeline, args=(email,))
     thread.start()
     return thread
 
 def stop_eeg_pipeline():
     global stop_event
-    stop_event.set()  # Set the stop event to stop the thread
+    stop_event.set()
     return {"status": "success", "message": "Data collection Stopped"}
 
 @app.post("/check-model-status")
@@ -382,6 +387,8 @@ async def train_model(request:Request):
     token_status = verify_token(request.cookies.get("access_token"))
     if token_status["status"] == "error":
         return {"status":"error","message":"Invalid token"}
+    stop_event.clear()
     thread = threading.Thread(target=model_training_pipeline, args=(token_status["email"],))
+    thread.start()
     return {"status":"success","message":"Model trained successfully"}
 
