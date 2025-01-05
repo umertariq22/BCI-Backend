@@ -61,17 +61,23 @@ class SensorReader:
             data = self.read_data()
             if data:
                 data = int(data)
-                yield data 
-            time.sleep(1 / self.FREQ)
+                return data
+            else:
+                return None
     
     def read_one_second_data(self):
         data = []
-        for sample in self.read_sensor_data():
-            data.append(sample)
+        for _ in range(self.FREQ):
+            sample = self.read_sensor_data()
+            if sample:
+                data.append(sample)
             if len(data) == self.FREQ:
-                yield data
-                data = []
-
+                return data
+            time.sleep(1/self.FREQ)
+        
+        return None
+    
+    
 if __name__ == "__main__":
     sensor = SensorReader(port='COM7')  # Replace with your serial port
     eeg_data = []

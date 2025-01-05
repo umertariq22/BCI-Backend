@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from eeg_collect import SensorReader
 from data_preprocessor import PreprocessEEG
 from feature_selection import FeatureExtractor
-from dummy_signal_generator import DummyGenerator
+from eeg_collect import SensorReader
 from model_trainer import Model
 import numpy as np
 import time
@@ -64,7 +64,7 @@ db = client["bci"]
 collection = db["users"]
 eeg_collection = db["eegdata"]
 
-sensor_reader = DummyGenerator()
+sensor_reader = SensorReader(port='COM3')
 preprocessor = PreprocessEEG()
 feature_extractor = FeatureExtractor()
 model = Model()
@@ -261,12 +261,9 @@ def start_eeg_pipeline(email: str):
     sensor_reader.start_reading()
     
     while current_data_state["isRunning"]:
-        data = sensor_reader.read_one_second()
-        
+        data = sensor_reader.read_one_second_data()
         preprocessed_data = preprocessor.preprocess(data)
-        
         feature = feature_extractor.calculate_features(preprocessed_data)
-        
         feature = {key: convert_numpy_types(value) for key, value in feature.items()}
         data = [convert_numpy_types(d) for d in data]
            
