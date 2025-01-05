@@ -15,7 +15,7 @@ class Model:
         label = pd.DataFrame(y).values
         X_train, X_test, y_train, y_test = train_test_split(data, label, test_size=0.2, random_state=42)
         self.model.fit(X_train, y_train)
-        
+        return self.evaluate(X_test, y_test)
         
     def train(self, X, y):
         self.model.fit(X, y)

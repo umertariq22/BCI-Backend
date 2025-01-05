@@ -1,7 +1,7 @@
-# Project Name
+# Brain Computer Interface
 
 ## Description
-A brief description of your project.
+
 
 ## Requirements
 - Python 3.x
@@ -11,7 +11,7 @@ A brief description of your project.
 ## Installation
 1. Clone the repository:
     ```bash
-    git clone https://github.com/yourusername/yourproject.git
+    git clone https://github.com/umertariq22/BCI-Backend.git
     cd yourproject
     ```
 

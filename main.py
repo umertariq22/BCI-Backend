@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Response,Request,BackgroundTasks
+from fastapi import FastAPI, Response,Request
 from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from passlib.context import CryptContext
@@ -15,15 +15,14 @@ from feature_selection import FeatureExtractor
 from eeg_collect import SensorReader
 from model_trainer import Model
 import numpy as np
-import time
 import threading
 
 def convert_numpy_types(data):
-    if isinstance(data, np.generic):  # Check if it's a NumPy scalar
-        return data.item()  # Convert to native Python type
-    elif isinstance(data, np.ndarray):  # Check if it's a NumPy array
-        return data.tolist()  # Convert array to list
-    return data  # If it's already a Python type, return as is
+    if isinstance(data, np.generic):
+        return data.item()
+    elif isinstance(data, np.ndarray): 
+        return data.tolist()
+    return data
 
 TOTAL_TIME = 20
 FREQ = 512
@@ -235,8 +234,6 @@ async def reset_password(request:Request):
 
 
 async def model_training_pipeline(email):
-    global model
-
     user_data = collection.find_one({"email":email})
     if not user_data:
         return {"status":"error","message":"User not found"}
@@ -262,6 +259,8 @@ def start_eeg_pipeline(email: str):
     
     while current_data_state["isRunning"]:
         data = sensor_reader.read_one_second_data()
+        if not data:
+            continue
         preprocessed_data = preprocessor.preprocess(data)
         feature = feature_extractor.calculate_features(preprocessed_data)
         feature = {key: convert_numpy_types(value) for key, value in feature.items()}
@@ -273,8 +272,7 @@ def start_eeg_pipeline(email: str):
             "label": state_to_label[current_data_state["state"]],
         }
         eeg_collection.insert_one(data_to_store)
-        time.sleep(1)
-        
+                
     sensor_reader.stop_reading()
     sensor_reader.disconnect()
     
@@ -318,7 +316,7 @@ async def check_data_status(request:Request):
     return {"status":"error","message":"Data not collected"}
 
 @app.post("/start-collection")
-async def start_eeg_collection(request:Request,background_tasks:BackgroundTasks):
+async def start_eeg_collection(request:Request):
     data = await request.json()
     token_status = verify_token(request.cookies.get("access_token"))
     if token_status["status"] == "error":
@@ -364,10 +362,10 @@ async def data_collected(request:Request):
     return {"status":"success","message":"Data collected successfully"}
 
 @app.post("/train-model")
-async def train_model(request:Request,background_tasks:BackgroundTasks):
+async def train_model(request:Request):
     token_status = verify_token(request.cookies.get("access_token"))
     if token_status["status"] == "error":
         return {"status":"error","message":"Invalid token"}
-    background_tasks.add_task(model_training_pipeline,token_status["email"])
+    thread = threading.Thread(target=model_training_pipeline, args=(token_status["email"],))
     return {"status":"success","message":"Model trained successfully"}
 
