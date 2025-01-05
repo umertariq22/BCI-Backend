@@ -258,19 +258,33 @@ def start_eeg_pipeline(email: str):
     sensor_reader.start_reading()
     
     while current_data_state["isRunning"]:
-        data = sensor_reader.read_one_second_data()
+        # Get data from the generator
+        generator_data = sensor_reader.read_one_second_data()
+        
+        # Convert generator to list for compatibility
+        data = list(next(generator_data, []))  # Use next to get one batch of data
+        print(data)
         if not data:
             continue
+        
+        # Preprocess the data
         preprocessed_data = preprocessor.preprocess(data)
+        
+        # Extract features
         feature = feature_extractor.calculate_features(preprocessed_data)
+        
+        # Ensure compatibility of feature types
         feature = {key: convert_numpy_types(value) for key, value in feature.items()}
         data = [convert_numpy_types(d) for d in data]
-           
+        
+        # Structure the data to store in the database
         data_to_store = {
             "email": email,
             "features": feature,
             "label": state_to_label[current_data_state["state"]],
         }
+        
+        # Save to database
         eeg_collection.insert_one(data_to_store)
         print(data)
         print(feature)
