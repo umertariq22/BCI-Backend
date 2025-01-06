@@ -4,6 +4,7 @@ from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score,classification_report,confusion_matrix
 from sklearn.preprocessing import StandardScaler
 import joblib
+import pickle
 
 class Model:
     def __init__(self):
@@ -16,6 +17,7 @@ class Model:
     def train_with_split(self,X,y):
         data = pd.DataFrame(X).values
         label = pd.DataFrame(y).values
+        print(label.shape,data.shape)
         data = self.scale_data(data)
         X_train, X_test, y_train, y_test = train_test_split(data, label, test_size=0.2, random_state=42)
         self.model.fit(X_train, y_train)
@@ -46,7 +48,14 @@ class Model:
         return self.scaler.fit_transform(X)
     
     def save_model(self,email):
-        joblib.dump(self.model, f'models/{email}.joblib')
-        joblib.dump(self.scaler, f'models/{email}_scaler.joblib')
+        model_filename = f'models/{email}.pkl'
+
+        with open(model_filename, 'wb') as file:
+            pickle.dump(self.model, file)
+
+        scaler_filename = f'models/{email}_scaler.pkl'
+
+        with open(scaler_filename, 'wb') as file:
+            pickle.dump(self.scaler, file)
         return True
         

@@ -91,8 +91,8 @@ def verify_token(token:str):
     try:
         payload = jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM])
         return {"status":"success","message":"Token is valid","email":payload["email"]}
-    except jwt.JWTError:
-        return {"status":"error","message":"Invalid token"}
+    except Exception as e:
+        return {"status":"error","message":"Invalid token","email":""}
         
 def generate_otp(length=6):
     digits = "0123456789"
@@ -237,6 +237,7 @@ async def reset_password(request:Request):
 def model_training_pipeline(email):
     model = Model()
     print("Model training started")
+    
     user_data = collection.find_one({"email":email})
     if not user_data:
         return {"status":"error","message":"User not found"}
@@ -252,8 +253,11 @@ def model_training_pipeline(email):
     for record in data:
         X.append(record["features"])
         y.append(record["label"])
+    print(len(X))
+    print(y)    
     model.train_with_split(X,y)
     print("Model trained")
+    print(model.evaluate(X,y))
     model.save_model(email=email)
     print("Model saved")
     collection.update_one({"email":email},{"$set":{"model_trained":True}})
@@ -382,7 +386,7 @@ async def train_model(request:Request):
     thread = threading.Thread(target=model_training_pipeline, args=(token_status["email"],))
     thread.start()
     return {"status":"success","message":"Model trained successfully"}
-
+model = ModelPredict(email = "ali@gmail.com")
 @app.post("/connect-egg")
 async def connect_eeg(request:Request):
     token_status = verify_token(request.cookies.get("access_token"))
@@ -394,6 +398,7 @@ async def connect_eeg(request:Request):
     if not user.get("model_trained"):
         return {"status":"error","message":"Model not trained"}
     sensor_reader.connect()
+    model.load_model()
     sensor_reader.start_reading()
     return {"status":"success","message":"Connected to EEG"}
 
@@ -409,9 +414,10 @@ async def disconnect_eeg(request:Request):
     sensor_reader.stop_reading()
     return {"status":"success","message":"Disconnected from EEG"}
 
-@app.post("predict")
+
+
+@app.post("/predict")
 async def predict(request:Request):
-    data = await request.json()
     token_status = verify_token(request.cookies.get("access_token"))
     if token_status["status"] == "error":
         return {"status":"error","message":"Invalid token","prediction":None}
@@ -420,15 +426,15 @@ async def predict(request:Request):
         return {"status":"error","message":"User not found","prediction":None}
     if not user.get("model_trained"):
         return {"status":"error","message":"Model not trained","prediction":None}
-    model = ModelPredict(email = token_status["email"])
-    model.load_model()
+    
     
     generator_data = sensor_reader.read_one_second_data()
     data = list(next(generator_data, []))
+    print(data)
     sensor_reader.stop_reading()
     preprocessed_data = preprocessor.preprocess(data)
     feature = feature_extractor.calculate_features(preprocessed_data)
-    prediction = model.predict([feature.values()])
+    prediction = model.predict([list(feature.values())])
     if prediction == 0:
         prediction = "Relaxing"
     else:
