@@ -438,4 +438,5 @@ async def predict(websocket: WebSocket):
         print("Client disconnected")
     finally:
         sensor_reader.stop_reading()
+        sensor_reader.disconnect()
         await websocket.close()
