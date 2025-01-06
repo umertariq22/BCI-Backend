@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Response,Request
+from fastapi import FastAPI, Response,Request, WebSocket,WebSocketDisconnect
 from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from passlib.context import CryptContext
@@ -19,12 +19,6 @@ import numpy as np
 import threading
 
 
-def convert_numpy_types(data):
-    if isinstance(data, np.generic):
-        return data.item()
-    elif isinstance(data, np.ndarray): 
-        return data.tolist()
-    return data
 
 TOTAL_TIME = 20
 FREQ = 512
@@ -65,7 +59,7 @@ db = client["bci"]
 collection = db["users"]
 eeg_collection = db["eegdata"] 
 
-sensor_reader = SensorReader(port='COM3')
+sensor_reader = SensorReader(port='COM7')
 preprocessor = PreprocessEEG()
 feature_extractor = FeatureExtractor()
 
@@ -275,9 +269,8 @@ def start_eeg_pipeline(email: str):
         if not data:
             continue
         preprocessed_data = preprocessor.preprocess(data)
-        feature = feature_extractor.calculate_features(preprocessed_data)
-        feature = {key: convert_numpy_types(value) for key, value in feature.items()}
-        data = [convert_numpy_types(d) for d in data]
+        feature,_ = feature_extractor.calculate_features(preprocessed_data)
+        
         
         data_to_store = {
             "email": email,
@@ -386,7 +379,7 @@ async def train_model(request:Request):
     thread = threading.Thread(target=model_training_pipeline, args=(token_status["email"],))
     thread.start()
     return {"status":"success","message":"Model trained successfully"}
-model = ModelPredict(email = "ali@gmail.com")
+model = ModelPredict()
 @app.post("/connect-egg")
 async def connect_eeg(request:Request):
     token_status = verify_token(request.cookies.get("access_token"))
@@ -397,8 +390,11 @@ async def connect_eeg(request:Request):
         return {"status":"error","message":"User not found"}
     if not user.get("model_trained"):
         return {"status":"error","message":"Model not trained"}
-    sensor_reader.connect()
-    model.load_model()
+    sensor_connected = sensor_reader.connect()
+    if not sensor_connected:
+        return {"status":"error","message":"Failed to connect to EEG"}
+    
+    model.load_model(email=token_status["email"])
     sensor_reader.start_reading()
     return {"status":"success","message":"Connected to EEG"}
 
@@ -415,28 +411,31 @@ async def disconnect_eeg(request:Request):
     return {"status":"success","message":"Disconnected from EEG"}
 
 
+@app.websocket("/ws/predict")
+async def predict(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            try:
+                data = await websocket.receive_text()
+                if data == "stop":
+                    break
+                
+                data = sensor_reader.read_one_second_data()
+                preprocessed_data = preprocessor.preprocess(data)
+                feature, _ = feature_extractor.calculate_features(preprocessed_data)
+                prediction = model.predict([feature])
+                prediction = "Relaxing" if prediction == 0 else "Focused"
+                await websocket.send_text(prediction)
+                
+            except ValueError:
+                await websocket.send_text("ERROR: Invalid data format. Please send comma-separated integers.")
+            except Exception as e:
+                await websocket.send_text(f"ERROR: An error occurred: {str(e)}")
+                break
 
-@app.post("/predict")
-async def predict(request:Request):
-    token_status = verify_token(request.cookies.get("access_token"))
-    if token_status["status"] == "error":
-        return {"status":"error","message":"Invalid token","prediction":None}
-    user = collection.find_one({"email":token_status["email"]})
-    if not user:
-        return {"status":"error","message":"User not found","prediction":None}
-    if not user.get("model_trained"):
-        return {"status":"error","message":"Model not trained","prediction":None}
-    
-    
-    generator_data = sensor_reader.read_one_second_data()
-    data = list(next(generator_data, []))
-    print(data)
-    sensor_reader.stop_reading()
-    preprocessed_data = preprocessor.preprocess(data)
-    feature = feature_extractor.calculate_features(preprocessed_data)
-    prediction = model.predict([list(feature.values())])
-    if prediction == 0:
-        prediction = "Relaxing"
-    else:
-        prediction = "Focused"
-    return {"status":"success","message":"Prediction successful","prediction":prediction}
+    except WebSocketDisconnect:
+        print("Client disconnected")
+    finally:
+        sensor_reader.stop_reading()
+        await websocket.close()

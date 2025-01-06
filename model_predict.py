@@ -10,12 +10,13 @@ feature_extractor = FeatureExtractor()
 
 
 class ModelPredict:
-    def __init__(self,email):
-        self.email = email
+    def __init__(self):
+        self.email = None
         self.model = None
         self.scaler = None
     
-    def load_model(self):
+    def load_model(self,email):
+        self.email = email
         with open(f'models/{self.email}.pkl', 'rb') as f:
             self.model = pickle.load(f)
         with open(f'models/{self.email}_scaler.pkl', 'rb') as f:

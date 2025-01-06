@@ -5,7 +5,9 @@ from scipy import signal
 
 class FeatureExtractor:
     def __init__(self,sampling_rate = 512):
-        self.columns = set()
+        self.COLUMNS = ["energy_alpha", "energy_beta", "energy_theta", "energy_delta", "alpha_beta_ratio",
+                        "max_freq", "spectral_centroid", "spectral_slope",
+                        "mean", "variance", "rms", "zero_crossings", "hjorth_mobility", "hjorth_complexity"]
         self.sampling_rate = sampling_rate
     
     def calculate_psd_features(self,data):
@@ -19,14 +21,13 @@ class FeatureExtractor:
         alpha_beta_ratio = energy_alpha / energy_beta if energy_beta != 0 else 0
         
         features = {
-            'energy_alpha': energy_alpha,
-            'energy_beta': energy_beta,
-            'energy_theta': energy_theta,
-            'energy_delta': energy_delta,
-            'alpha_beta_ratio': alpha_beta_ratio
+            'energy_alpha': float(energy_alpha),
+            'energy_beta': float(energy_beta),
+            'energy_theta': float(energy_theta),
+            'energy_delta': float(energy_delta),
+            'alpha_beta_ratio': float(alpha_beta_ratio)
         }
         
-        self.columns.update(features.keys())
         return features
     
     def calculate_spectral_features(self,data):
@@ -38,18 +39,17 @@ class FeatureExtractor:
         spectral_slope = np.polyfit(log_freqs, log_psd, 1)[0]
         
         features ={
-            'max_freq': max_freq,
-            'spectral_centroid': spectral_centroid,
-            'spectral_slope': spectral_slope
+            'max_freq': float(max_freq),
+            'spectral_centroid': float(spectral_centroid),
+            'spectral_slope': float(spectral_slope)
         }
         
-        self.columns.update(features.keys())
         return features
         
 
 
     def calculate_temporal_features(self,data):
-        mean_value = np.mean(data)
+        mean_value =  np.mean(data)
         variance = np.var(data)
         
         rms = np.sqrt(np.mean(np.square(data)))
@@ -57,15 +57,14 @@ class FeatureExtractor:
         mobility = np.std(np.diff(data)) / np.std(data)
         complexity = (np.std(np.diff(np.diff(data))) / np.std(np.diff(data))) / mobility
         features = {
-            "mean": mean_value,
-            "variance": variance,
-            "rms": rms,
-            "zero_crossings": zero_crossings,
-            "hjorth_mobility": mobility,
-            "hjorth_complexity": complexity,
+            "mean": float(mean_value),
+            "variance": float(variance),
+            "rms": float(rms),
+            "zero_crossings": float(zero_crossings),
+            "hjorth_mobility": float(mobility),
+            "hjorth_complexity": float(complexity),
         }
         
-        self.columns.update(features.keys())
         return features
 
     
@@ -75,5 +74,9 @@ class FeatureExtractor:
         temporal_features = self.calculate_temporal_features(data)
         
         features =  {**psd_features, **spectral_features, **temporal_features}
-        return features
+        features_row = []
+        
+        for key in self.COLUMNS:
+            features_row.append(features[key])
+        return features_row, self.COLUMNS
     

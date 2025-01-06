@@ -21,7 +21,7 @@ class SensorReader:
             
             self.ser.open()
             print(f"Connected to {self.port} at {self.baud_rate} baud.")
-        except Exception as e:
+        except serial.SerialException as e:
             print(f"Failed to connect to {self.port}: {e}")
             return False
         return True
