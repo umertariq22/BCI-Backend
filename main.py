@@ -2,6 +2,8 @@ from fastapi import FastAPI, Response,Request, WebSocket,WebSocketDisconnect
 from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from passlib.context import CryptContext
+from queue import Queue
+import asyncio
 import jwt
 from signup import User,validateSignupForm,AuthResponseModel
 from pymongo import MongoClient,errors
@@ -18,13 +20,14 @@ from model_predict import ModelPredict
 import numpy as np
 import threading
 
+prediction_queue = Queue()
 
 
 TOTAL_TIME = 20
 FREQ = 512
 
 prediction_thread = None
-is_prediction = False
+is_predicting = False
 
 stop_event = threading.Event()
 
@@ -62,7 +65,7 @@ db = client["bci"]
 collection = db["users"]
 eeg_collection = db["eegdata"] 
 
-sensor_reader = SensorReader(port='COM7')
+sensor_reader = SensorReader(port='COM3')
 preprocessor = PreprocessEEG()
 feature_extractor = FeatureExtractor()
 
@@ -414,43 +417,93 @@ async def disconnect_eeg(request:Request):
     return {"status":"success","message":"Disconnected from EEG"}
 
 
-async def start_prediction_pipeline(websocket: WebSocket):
-    global is_predicting
+# def start_prediction_pipeline(websocket: WebSocket):
+#     global is_predicting
 
-    async def send_predictions():
-        global is_predicting
-        while is_predicting:
-            try:
-                generator_data = sensor_reader.read_one_second_data()
-                data = list(next(generator_data, []))
-                data = preprocessor.preprocess(data)
-                feature, _ = feature_extractor.calculate_features(data)
-                prediction = model.predict([feature]) 
-                prediction_text = "Relaxing" if prediction == 0 else "Focused"
+#     def send_predictions():
+#         global is_predicting
+#         while is_predicting:
+#             try:
+#                 generator_data = sensor_reader.read_one_second_data()
+#                 data = list(next(generator_data, []))
+#                 data = preprocessor.preprocess(data)
+#                 feature, _ = feature_extractor.calculate_features(data)
+#                 prediction = model.predict([feature]) 
+#                 prediction_text = "Relaxing" if prediction == 0 else "Focused"
                 
-                await websocket.send_json({"prediction": prediction_text})
-            except Exception as e:
-                print(f"Error in prediction pipeline: {e}")
-                break
+#                 websocket.send(prediction_text)
+#             except Exception as e:
+#                 print(f"Error in prediction pipeline: {e}")
+#                 break
 
-        is_predicting = False
-        print("Stopped prediction pipeline")
+#         is_predicting = False
+#         print("Stopped prediction pipeline")
         
-    await send_predictions()
+#     send_predictions()
+#     sensor_reader.stop_reading()
+#     sensor_reader.disconnect()
+#     websocket.close()
+
+
+# @app.websocket("/ws/predict")
+# async def websocket_endpoint(websocket: WebSocket):
+#     global prediction_thread, is_predicting
+#     await websocket.accept()
+#     try:
+#         if not is_predicting:
+#             is_predicting = True
+#             stop_event.clear()
+#             prediction_thread = threading.Thread(target=start_prediction_pipeline, args=(websocket,))
+#             prediction_thread.start()
+#         else:
+#             await websocket.send_json({"message": "Prediction pipeline already running."})
+        
+#     except WebSocketDisconnect:
+#         print("WebSocket disconnected")
+#         is_predicting = False
+#     except Exception as e:
+#         print(f"WebSocket error: {e}")
+#         is_predicting = False
+    
+    
+def prediction_worker():
+    global is_predicting
+    while is_predicting:
+        try:
+            generator_data = sensor_reader.read_one_second_data()
+            data = list(next(generator_data, []))
+            data = preprocessor.preprocess(data)
+            feature, _ = feature_extractor.calculate_features(data)
+            prediction = model.predict([feature])
+            prediction_text = "Relaxing" if prediction == 0 else "Focused"
+
+            # Add prediction to the queue
+            prediction_queue.put(prediction_text)
+        except Exception as e:
+            print(f"Error in prediction pipeline: {e}")
+            break
+
+    is_predicting = False
+    print("Stopped prediction pipeline")
 
 
 @app.websocket("/ws/predict")
 async def websocket_endpoint(websocket: WebSocket):
-    global prediction_thread, is_predicting
+    global is_predicting
     await websocket.accept()
     try:
         if not is_predicting:
             is_predicting = True
-            prediction_thread = threading.Thread(target=start_prediction_pipeline, args=(websocket,))
-            prediction_thread.start()
+            threading.Thread(target=prediction_worker).start()
+
+            while is_predicting:
+                await asyncio.sleep(0.1)  # Check queue periodically
+                if not prediction_queue.empty():
+                    prediction_text = prediction_queue.get()
+                    await websocket.send_text(prediction_text)
         else:
             await websocket.send_json({"message": "Prediction pipeline already running."})
-        
+
     except WebSocketDisconnect:
         print("WebSocket disconnected")
         is_predicting = False
@@ -460,4 +513,4 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         sensor_reader.stop_reading()
         sensor_reader.disconnect()
-        await websocket.close()
+        await websocket.close()        
