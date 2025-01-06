@@ -23,6 +23,9 @@ import threading
 TOTAL_TIME = 20
 FREQ = 512
 
+prediction_thread = None
+is_prediction = False
+
 stop_event = threading.Event()
 
 state_to_label = {
@@ -411,31 +414,49 @@ async def disconnect_eeg(request:Request):
     return {"status":"success","message":"Disconnected from EEG"}
 
 
-@app.websocket("/ws/predict")
-async def predict(websocket: WebSocket):
-    await websocket.accept()
-    try:
-        while True:
+async def start_prediction_pipeline(websocket: WebSocket):
+    global is_predicting
+
+    async def send_predictions():
+        global is_predicting
+        while is_predicting:
             try:
-                data = await websocket.receive_text()
-                if data == "stop":
-                    break
+                generator_data = sensor_reader.read_one_second_data()
+                data = list(next(generator_data, []))
+                data = preprocessor.preprocess(data)
+                feature, _ = feature_extractor.calculate_features(data)
+                prediction = model.predict([feature]) 
+                prediction_text = "Relaxing" if prediction == 0 else "Focused"
                 
-                data = sensor_reader.read_one_second_data()
-                preprocessed_data = preprocessor.preprocess(data)
-                feature, _ = feature_extractor.calculate_features(preprocessed_data)
-                prediction = model.predict([feature])
-                prediction = "Relaxing" if prediction == 0 else "Focused"
-                await websocket.send_text(prediction)
-                
-            except ValueError:
-                await websocket.send_text("ERROR: Invalid data format. Please send comma-separated integers.")
+                await websocket.send_json({"prediction": prediction_text})
             except Exception as e:
-                await websocket.send_text(f"ERROR: An error occurred: {str(e)}")
+                print(f"Error in prediction pipeline: {e}")
                 break
 
+        is_predicting = False
+        print("Stopped prediction pipeline")
+        
+    await send_predictions()
+
+
+@app.websocket("/ws/predict")
+async def websocket_endpoint(websocket: WebSocket):
+    global prediction_thread, is_predicting
+    await websocket.accept()
+    try:
+        if not is_predicting:
+            is_predicting = True
+            prediction_thread = threading.Thread(target=start_prediction_pipeline, args=(websocket,))
+            prediction_thread.start()
+        else:
+            await websocket.send_json({"message": "Prediction pipeline already running."})
+        
     except WebSocketDisconnect:
-        print("Client disconnected")
+        print("WebSocket disconnected")
+        is_predicting = False
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+        is_predicting = False
     finally:
         sensor_reader.stop_reading()
         sensor_reader.disconnect()
