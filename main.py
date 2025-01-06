@@ -65,7 +65,9 @@ db = client["bci"]
 collection = db["users"]
 eeg_collection = db["eegdata"] 
 
-sensor_reader = SensorReader(port='COM3')
+COM_PORT = os.environ.get("COM_PORT")
+sensor_reader = SensorReader(port=COM_PORT)
+
 preprocessor = PreprocessEEG()
 feature_extractor = FeatureExtractor()
 
