@@ -1,6 +1,7 @@
 pymongo
 fastapi
 uvicorn
+uvicorn[standard]
 pydantic
 passlib
 pyjwt
