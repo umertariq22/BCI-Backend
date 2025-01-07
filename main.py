@@ -500,17 +500,14 @@ async def websocket_endpoint(websocket: WebSocket):
     global is_predicting
     await websocket.accept()
     try:
-        if not is_predicting:
-            is_predicting = True
-            threading.Thread(target=prediction_worker).start()
+        is_predicting = True
+        threading.Thread(target=prediction_worker).start()
 
-            while is_predicting:
-                await asyncio.sleep(0.1)  # Check queue periodically
-                if not prediction_queue.empty():
-                    prediction_text = prediction_queue.get()
-                    await websocket.send_text(prediction_text)
-        else:
-            await websocket.send_json({"message": "Prediction pipeline already running."})
+        while is_predicting:
+            await asyncio.sleep(0.1)  # Check queue periodically
+            if not prediction_queue.empty():
+                prediction_text = prediction_queue.get()
+                await websocket.send_text(prediction_text)
 
     except WebSocketDisconnect:
         print("WebSocket disconnected")
