@@ -472,11 +472,17 @@ def prediction_worker():
     global is_predicting
     while is_predicting:
         try:
-            generator_data = sensor_reader.read_one_second_data()
-            data = list(next(generator_data, []))
-            data = preprocessor.preprocess(data)
-            feature, _ = feature_extractor.calculate_features(data)
-            prediction = model.predict([feature])
+            predictions = []
+            for _ in range(5):
+                generator_data = sensor_reader.read_one_second_data()
+                data = list(next(generator_data, []))
+                data = preprocessor.preprocess(data)
+                feature, _ = feature_extractor.calculate_features(data)
+                prediction = model.predict([feature])
+                predictions.append(prediction)
+            
+            prediction = int(np.argmax(np.bincount(predictions)))
+                
             prediction_text = "Relaxing" if prediction == 0 else "Focused"
 
             # Add prediction to the queue
