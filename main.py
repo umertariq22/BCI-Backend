@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from passlib.context import CryptContext
 from queue import Queue
+import time
 import asyncio
 import jwt
 from signup import User,validateSignupForm,AuthResponseModel
@@ -66,7 +67,7 @@ collection = db["users"]
 eeg_collection = db["eegdata"] 
 
 COM_PORT = os.environ.get("COM_PORT")
-sensor_reader = SensorReader(port=COM_PORT)
+sensor_reader = SensorReader(port="COM3")
 
 preprocessor = PreprocessEEG()
 feature_extractor = FeatureExtractor()
@@ -470,6 +471,7 @@ async def disconnect_eeg(request:Request):
     
 def prediction_worker():
     global is_predicting
+    print(is_predicting)
     while is_predicting:
         try:
             predictions = []
@@ -480,8 +482,13 @@ def prediction_worker():
                 feature, _ = feature_extractor.calculate_features(data)
                 prediction = model.predict([feature])
                 predictions.append(prediction)
+                time.sleep(1)
             
-            prediction = int(np.argmax(np.bincount(predictions)))
+            prediction = None
+            if predictions.count(0) > predictions.count(1):
+                prediction = 0
+            else:
+               prediction = 1
                 
             prediction_text = "Relaxing" if prediction == 0 else "Focused"
 
