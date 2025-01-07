@@ -498,10 +498,11 @@ def prediction_worker():
 @app.websocket("/ws/predict")
 async def websocket_endpoint(websocket: WebSocket):
     global is_predicting
+    stop_event.clear()
     await websocket.accept()
     try:
         is_predicting = True
-        threading.Thread(target=prediction_worker).start()
+        thread = threading.Thread(target=prediction_worker).start()
 
         while is_predicting:
             await asyncio.sleep(0.1)  # Check queue periodically
@@ -516,6 +517,7 @@ async def websocket_endpoint(websocket: WebSocket):
         print(f"WebSocket error: {e}")
         is_predicting = False
     finally:
+        stop_event.set()
         sensor_reader.stop_reading()
         sensor_reader.disconnect()
         await websocket.close()        
