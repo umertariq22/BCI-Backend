@@ -11,4 +11,4 @@ dummy_signal_generator.py
 collect.py
 store_to_db.py
 *.joblib
-models/
+ml_models/
