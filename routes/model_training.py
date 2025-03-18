@@ -24,6 +24,10 @@ thread = None
 
 router = APIRouter()
 
+@router.get("/")
+async def test_model_training():
+    return {"message": "Model Training Route is working!"}
+
 def model_training_pipeline(email):
     model = Model()
     print("Model training started")

@@ -1,7 +1,7 @@
 import joblib
-from data_preprocessor import PreprocessEEG
-from feature_selection import FeatureExtractor
-from eeg_collect import SensorReader
+from .data_preprocessor import PreprocessEEG
+from .feature_selection import FeatureExtractor
+from .eeg_collect import SensorReader
 import pickle
 
 sensor_reader = SensorReader(port='COM3')

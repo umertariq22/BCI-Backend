@@ -30,8 +30,8 @@ def verify_password(plain_password, hashed_password):
 def decode_token(token):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload["email"]
+        return {"status":"success","message":"Token is Valid","email":payload.get("email")}
     except jwt.ExpiredSignatureError:
-        return "Token has expired"
+        return {"status":"error","message":"Token has expired"}
     except jwt.InvalidTokenError:
-        return "Invalid token"
+        return {"status":"error","message":"Invalid token"}

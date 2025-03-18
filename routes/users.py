@@ -70,13 +70,11 @@ async def validate_token(request:Request,response:Response):
     if not access_token:
         return {"status":"error","message":"Token not found"}
     payload = decode_token(access_token)
-    if payload == "Token has expired":
+    print(payload)
+    if payload["status"] == "error":
         response.delete_cookie("access_token")
-        return {"status":"error","message":"Token has expired"}
-    if payload == "Invalid token":
-        response.delete_cookie("access_token")
-        return {"status":"error","message":"Invalid token"}
-    return {"status":"success","message":"Token is valid","email":payload}
+        return {"status":"error","message":payload["message"]}
+    return {"status":"success","message":"Token is valid","email":payload["email"]}
 
 @router.post("/logout")
 async def logout(response:Response):

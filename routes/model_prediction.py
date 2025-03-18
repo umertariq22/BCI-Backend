@@ -9,6 +9,7 @@ import time
 import threading 
 from queue import Queue
 import asyncio
+import os
 from threading import Event
 
 prediction_queue = Queue()
@@ -21,8 +22,14 @@ thread = None
 router = APIRouter()
 collection = db_instance.get_collection("users")
 
-sensor_reader = SensorReader()
+COM_PORT = os.environ.get("COM_PORT")
+sensor_reader = SensorReader(port=COM_PORT)
 model = ModelPredict()
+
+
+@router.get("/")
+async def test_model_training():
+    return {"message": "Model Training Route is working!"}
 
 
 @router.post("/connect-egg")
