@@ -27,8 +27,8 @@ This repository contains the backend service for a Brain-Computer Interface (BCI
 ```bash
 .
 ├── .vscode              # VSCode settings
-├── Wifi_Communication   # Code to receive EEG data over Wi-Fi
-├── ml_models            # Pre-trained EEG classification models
+├── Wifi_Communication   # Arduino Sketch
+├── ml_models            # Pre-trained EEG classification models (For Indivitual Users)
 ├── models               # Pydantic models for DB schema
 ├── response_models      # Response schemas for API
 ├── routes               # FastAPI route handlers
@@ -36,7 +36,6 @@ This repository contains the backend service for a Brain-Computer Interface (BCI
 ├── utils                # Utility functions (e.g., preprocessing, I/O)
 ├── database.py          # DB connection and initialization
 ├── main.py              # FastAPI app entry point
-├── main2.py             # (Optional) Secondary script, e.g. for testing
 ├── requirements.txt     # Required packages
 └── readme.md            # Project documentation
 ```
