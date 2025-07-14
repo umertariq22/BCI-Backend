@@ -32,7 +32,7 @@ This repository contains the backend service for a Brain-Computer Interface (BCI
 ├── models               # Pydantic models for DB schema
 ├── response_models      # Response schemas for API
 ├── routes               # FastAPI route handlers
-├── services             # Business logic and service layers
+├── services             # EEG Handling Services
 ├── utils                # Utility functions (e.g., preprocessing, I/O)
 ├── database.py          # DB connection and initialization
 ├── main.py              # FastAPI app entry point
