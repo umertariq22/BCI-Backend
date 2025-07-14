@@ -108,7 +108,7 @@ Backend API will be available at `http://localhost:8000`
 
 ## 🧠 Related Projects
 
-- [BCI Frontend (Next.js)](https://github.com/yourusername/bci-frontend)
+- [BCI Frontend (Next.js)](https://github.com/umertariq22/bci-frontend)
 
 ---
 
